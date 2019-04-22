@@ -54,13 +54,13 @@ void reconnect() {
   while (!mqttClient.connected()) {
     Serial.print("Attempting MQTT connection...");
     // Attempt to connect with the client ID
-    if (mqttClient.connect("chromaFaceClient")) {
+    if (mqttClient.connect(CLIENT_ID)) {
         Serial.println("Connected!");
         // Once connected, publish an announcement...
-        mqttClient.publish("chromaFace", "CONNECTED");
+        mqttClient.publish(TOPIC, "CONNECTED");
 
         // Subscribe to topic
-        mqttClient.subscribe("chromaFace");
+        mqttClient.subscribe(TOPIC);
         mqttClient.subscribe("chromaFaceStatus");
         mqttClient.subscribe("chromaFaceEffects");
 
@@ -75,13 +75,13 @@ void reconnect() {
 }
 
 boolean reconnect_non_blocking() {
-  if (mqttClient.connect("chromaFaceClient")) {
+  if (mqttClient.connect(CLIENT_ID)) {
       Serial.println("Connected!");
       // Once connected, publish an announcement...
-      mqttClient.publish("chromaFace", "CONNECTED");
+      mqttClient.publish(TOPIC, "CONNECTED");
 
       // Subscribe to topic
-      mqttClient.subscribe("chromaFace");
+      mqttClient.subscribe(TOPIC);
       mqttClient.subscribe("chromaFaceStatus");
       mqttClient.subscribe("chromaFaceEffects");
 
