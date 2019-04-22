@@ -17,8 +17,8 @@ CRGB leds[NUM_LEDS];
 
 // Update these with values suitable for the hardware/network.
 // byte mac[] = { 0xB3, 0x5C, 0xED, 0xF8, 0x15, 0xD6 };
-byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
-IPAddress ip(192, 168, 1, 97);
+byte mac[] = { 0x4D, 0x26, 0xB5, 0x45, 0xF6, 0xD8 };
+IPAddress ip(192, 168, 2, 106);
 // IPAddress myDns(192, 168, 0, 1);
 
 void stateMachine (int state);
@@ -98,6 +98,7 @@ EffectsList effects = { rainbow, rainbowWithGlitter, confetti, sinelon, juggle, 
 
 uint8_t currentEffect = 0; // Index number of which pattern is current
 uint8_t gHue = 0; // rotating "base color" used by many of the patterns
+
 long lastReconnectAttempt = 0;
 
 void nextPattern();
