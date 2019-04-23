@@ -5,6 +5,9 @@
 
 FASTLED_USING_NAMESPACE
 
+#define TEST_PIN    7
+
+
 #define DATA_PIN    5
 #define LED_TYPE    WS2811
 #define COLOR_ORDER GRB
@@ -24,16 +27,20 @@ IPAddress ip(192, 168, 2, 106);
 void stateMachine (int state);
 
 // The Client ID for connecting to the MQTT Broker
-const char* CLIENT_ID = "fanInsertsClient";
+const char* CLIENT_ID = "LED_T";
 
 // The Topic for mqtt messaging
-const char* TOPIC = "fanInserts/set";
+const char* EFFECTS_TOPIC = "command/LED_T/effects";
+const char* STATE_TOPIC = "command/LED_T/state";
+const char* TOGGLE_TOPIC = "command/LED_T";
 
 // States
 const int IDLE_STATE = 0;
 const int PRESENT_STATE = 1;
 const int ACTIVE_STATE = 2;
 const int COMPLETE_STATE = 3;
+
+int LED_state = 0;
 
 // Initialize the current state ON or OFF
 int currentState = IDLE_STATE;
@@ -47,47 +54,21 @@ PubSubClient mqttClient(net);
 const char* mqttServer = "192.168.2.101";
 
 // Station states, used as MQTT Messages
-const char states[4][10] = {"IDLE", "PRESENT", "ACTIVE", "COMPLETE"};
-
-// Reconnect to the MQTT broker when the connection is lost
-void reconnect() {
-  while (!mqttClient.connected()) {
-    Serial.print("Attempting MQTT connection...");
-    // Attempt to connect with the client ID
-    if (mqttClient.connect(CLIENT_ID)) {
-        Serial.println("Connected!");
-        // Once connected, publish an announcement...
-        mqttClient.publish(TOPIC, "CONNECTED");
-
-        // Subscribe to topic
-        mqttClient.subscribe(TOPIC);
-        mqttClient.subscribe("chromaFaceStatus");
-        mqttClient.subscribe("chromaFaceEffects");
-
-    } else {
-        Serial.print("failed, rc=");
-        Serial.print(mqttClient.state());
-        Serial.println(" try again in 5 seconds");
-        // Wait 5 seconds before retrying
-        delay(5000);
-    }
-  }
-}
+const char states[4][30] = {"IDLE", "PRESENT", "ACTIVE", "COMPLETE"};
 
 boolean reconnect_non_blocking() {
   if (mqttClient.connect(CLIENT_ID)) {
       Serial.println("Connected!");
       // Once connected, publish an announcement...
-      mqttClient.publish(TOPIC, "CONNECTED");
+      mqttClient.publish("LED_T", "CONNECTED");
 
       // Subscribe to topic
-      mqttClient.subscribe(TOPIC);
-      mqttClient.subscribe("chromaFaceStatus");
-      mqttClient.subscribe("chromaFaceEffects");
+      mqttClient.subscribe(STATE_TOPIC);
+      mqttClient.subscribe(EFFECTS_TOPIC);
 
   } else {
       Serial.print("failed, rc=");
-      Serial.print(mqttClient.state());
+      Serial.println(mqttClient.state());
   }
   return mqttClient.connected();
 }
@@ -116,19 +97,22 @@ void messageReceived(char* topic, byte* payload, unsigned int length) {
   payloadArr[length] = 0;
 
   Serial.println(payloadArr);  // null terminated array
-  if (strcmp(topic, "fanInsertsEffects") == 0) {
+  if (strcmp(topic, EFFECTS_TOPIC) == 0) {
     Serial.println("nextPattern");
     nextPattern();
   }
-  else {  
+  else if (strcmp(topic, STATE_TOPIC) == 0) {
     if (strcmp(payloadArr, states[0]) == 0) tempState = IDLE_STATE;
     if (strcmp(payloadArr, states[1]) == 0) tempState = PRESENT_STATE;
     if (strcmp(payloadArr, states[2]) == 0) tempState = ACTIVE_STATE;
     if (strcmp(payloadArr, states[3]) == 0) tempState = COMPLETE_STATE;
 
-
     Serial.println(tempState);
     stateMachine(tempState);
+  }
+  else if (strcmp(topic, TOGGLE_TOPIC) == 0) {
+    if (strcmp(payloadArr, "stop") == 0) LED_state = 0;
+    if (strcmp(payloadArr, "start") == 0) LED_state = 1;
   }
 }
 
@@ -147,23 +131,42 @@ void setup() {
   
   FastLED.addLeds<LED_TYPE,DATA_PIN,COLOR_ORDER>(leds, NUM_LEDS);
 
+  pinMode(TEST_PIN, INPUT);
   // Set master brightness control
   FastLED.setBrightness(BRIGHTNESS);
   lastReconnectAttempt = 0;
+  LED_state = 0;
 }
 
+int testModeTimer = 0;
 void loop() {
-  if (!mqttClient.connected()) {
-    long now = millis();
-    if (now - lastReconnectAttempt > 5000) {
-      lastReconnectAttempt = now;
-      // Attempt to reconnect
-      if (reconnect_non_blocking()) {
-        lastReconnectAttempt = 0;
-      }
+  boolean testMode = digitalRead(TEST_PIN) == HIGH;
+
+  if (testMode) {
+    if (millis() - testModeTimer > 8000) {
+      testModeTimer = millis();
+      currentState = currentState + 1;
+      if (currentState > 3) currentState = 0;
     }
-  } else {
-    mqttClient.loop();
+  }
+  else {
+    if (!mqttClient.connected()) {
+      long now = millis();
+      if (now - lastReconnectAttempt > 5000) {
+        lastReconnectAttempt = now;
+        // Attempt to reconnect
+        if (reconnect_non_blocking()) {
+          lastReconnectAttempt = 0;
+        }
+      }
+    } else {
+      mqttClient.loop();
+    }
+
+    if (LED_state == 0) {
+      // fill_solid(leds, NUM_LEDS, CRGB::Black);
+      return FastLED.clear();
+    }
   }
 
   switch (currentState) {
@@ -247,6 +250,10 @@ void nextPattern()
 {
   // add one to the current pattern number, and wrap around at the end
   currentEffect = (currentEffect + 1) % ARRAY_SIZE(effects);
+}
+
+void testCycle () {
+
 }
 
 
