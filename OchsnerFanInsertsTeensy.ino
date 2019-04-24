@@ -64,7 +64,7 @@ boolean reconnect_non_blocking() {
   if (mqttClient.connect(CLIENT_ID)) {
       // Serial.println("Connected!");
       // Once connected, publish an announcement...
-      mqttClient.publish(CLIENT_ID, "CONNECTED");
+      mqttClient.publish(CLIENT_ID, "CONNECTED", true);
 
       // Subscribe to topic
       mqttClient.subscribe(STATE_TOPIC);
@@ -213,7 +213,7 @@ void stateMachine (int state) {
     Serial.println(state);
 #endif
     currentState = state;
-    mqttClient.publish("chromaFaceStatus", states[currentState]);
+    mqttClient.publish("chromaFaceStatus", states[currentState], true);
   }
 }
 
