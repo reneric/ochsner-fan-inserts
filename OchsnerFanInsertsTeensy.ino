@@ -7,6 +7,7 @@ FASTLED_USING_NAMESPACE
 
 #define TEST_PIN    7
 
+#define DEBUG 1
 
 #define DATA_PIN    5
 #define LED_TYPE    WS2811
@@ -19,10 +20,10 @@ FASTLED_USING_NAMESPACE
 CRGB leds[NUM_LEDS];
 
 // Update these with values suitable for the hardware/network.
-// byte mac[] = { 0xB3, 0x5C, 0xED, 0xF8, 0x15, 0xD6 };
 byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xEA };
 IPAddress ip(192, 168, 2, 106);
-// IPAddress myDns(192, 168, 0, 1);
+// byte mac[] = { 0xDE, 0xAD, 0xBE, 0xEF, 0xFE, 0xED };
+// IPAddress ip(192, 168, 1, 82);
 
 void stateMachine (int state);
 
@@ -51,20 +52,23 @@ EthernetClient net;
 // Initialize the MQTT library
 PubSubClient mqttClient(net);
 
-const char* mqttServer = "192.168.2.101";
+// const char* mqttServer = "192.168.1.97";
+const int mqttPort = 1883;
+const char* mqttServer = "192.168.2.10";
 
 // Station states, used as MQTT Messages
 const char states[4][30] = {"IDLE", "PRESENT", "ACTIVE", "COMPLETE"};
 
 boolean reconnect_non_blocking() {
   if (mqttClient.connect(CLIENT_ID)) {
-      Serial.println("Connected!");
+      // Serial.println("Connected!");
       // Once connected, publish an announcement...
-      mqttClient.publish("LED_T", "CONNECTED");
+      mqttClient.publish(CLIENT_ID, "CONNECTED", true);
 
       // Subscribe to topic
       mqttClient.subscribe(STATE_TOPIC);
       mqttClient.subscribe(EFFECTS_TOPIC);
+      mqttClient.subscribe(TOGGLE_TOPIC);
 
   } else {
       Serial.print("failed, rc=");
@@ -113,6 +117,7 @@ void messageReceived(char* topic, byte* payload, unsigned int length) {
   else if (strcmp(topic, TOGGLE_TOPIC) == 0) {
     if (strcmp(payloadArr, "stop") == 0) LED_state = 0;
     if (strcmp(payloadArr, "start") == 0) LED_state = 1;
+    Serial.println(LED_state);
   }
 }
 
@@ -126,7 +131,7 @@ void setup() {
   Ethernet.begin(mac, ip);
 //   Ethernet.begin(mac, ip, myDns); // Connect with DNS 
 
-  mqttClient.setServer(mqttServer, 1883);
+  mqttClient.setServer(mqttServer, mqttPort);
   mqttClient.setCallback(messageReceived);
   
   FastLED.addLeds<LED_TYPE,DATA_PIN,COLOR_ORDER>(leds, NUM_LEDS);
@@ -141,7 +146,6 @@ void setup() {
 int testModeTimer = 0;
 void loop() {
   boolean testMode = digitalRead(TEST_PIN) == HIGH;
-
   if (testMode) {
     if (millis() - testModeTimer > 8000) {
       testModeTimer = millis();
@@ -162,26 +166,27 @@ void loop() {
     } else {
       mqttClient.loop();
     }
-
-    if (LED_state == 0) {
-      // fill_solid(leds, NUM_LEDS, CRGB::Black);
-      return FastLED.clear();
-    }
   }
-
-  switch (currentState) {
-    case PRESENT_STATE:
-      setPresent();
-      break;
-    case ACTIVE_STATE:
-      setActive();
-      break;
-    case COMPLETE_STATE:
-      setComplete();
-      break;
-    default:
-      setIdle();
-      break;
+  Serial.println(LED_state);
+  if (LED_state == 0) {
+      // fill_solid(leds, NUM_LEDS, CRGB::Black);
+      FastLED.clear();
+  }
+  else {
+    switch (currentState) {
+      case PRESENT_STATE:
+        setPresent();
+        break;
+      case ACTIVE_STATE:
+        setActive();
+        break;
+      case COMPLETE_STATE:
+        setComplete();
+        break;
+      default:
+        setIdle();
+        break;
+    }
   }
   FastLED.show();
   FastLED.delay(1000/FRAMES_PER_SECOND);
@@ -207,7 +212,7 @@ void stateMachine (int state) {
     Serial.println(state);
 #endif
     currentState = state;
-    mqttClient.publish("chromaFaceStatus", states[currentState]);
+    mqttClient.publish("chromaFaceStatus", states[currentState], true);
   }
 }
 
@@ -229,10 +234,13 @@ void setPresent () {
 
 /********** SET GIVEN STATION STATE TO ACTIVE **********/
 void setActive () {
-#if DEBUG == 1
-  Serial.println("Set ACTIVE");
+#if DEBUG == 1  
+  Serial.println("ACTIVE");
 #endif
-  fill_solid(leds, NUM_LEDS, CRGB::Blue);
+  static uint8_t startIndex = 0;
+  startIndex = startIndex + 2; /* motion speed */
+    
+  FillLEDsFromPaletteColors(startIndex);
 }
 
 /********** SET GIVEN STATION STATE TO COMPLETE **********/
@@ -318,4 +326,26 @@ void juggle() {
     leds[beatsin16( i+7, 0, NUM_LEDS-1 )] |= CHSV(dothue, 200, 255);
     dothue += 32;
   }
+}
+
+
+void FillLEDsFromPaletteColors( uint8_t colorIndex)
+{
+    for( int i = 0; i < NUM_LEDS; i++) {
+        leds[i] = ColorFromPalette( SetupActivePalette(), colorIndex, BRIGHTNESS, LINEARBLEND);
+        colorIndex += 1;
+    }
+}
+
+CRGBPalette16 SetupActivePalette()
+{
+    CRGB blue = CHSV( HUE_BLUE, 255, 255);
+    CRGB darkBlue  = CRGB::DarkBlue;
+    CRGB black  = CRGB::DarkBlue;
+    
+    return CRGBPalette16(
+                                   blue,  blue,  black,  black,
+                                   darkBlue, darkBlue, black,  black,
+                                   blue,  blue,  black,  black,
+                                   darkBlue, darkBlue, black,  black );
 }
